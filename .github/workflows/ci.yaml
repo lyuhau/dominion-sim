@@ -7,8 +7,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test-deploy:
-    name: CI on commit
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       # Checkout (without LFS)
@@ -26,20 +26,32 @@ jobs:
           restore-keys: |
             Library-
 
-      # Detect changes
-      - uses: dorny/paths-filter@v2.10.2
-        id: changes
-        with:
-          filters: |
-            all:
-            - ./**
-
       - name: Test
         uses: game-ci/unity-test-runner@v2
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: [test]
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout (without LFS)
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Git LFS
+      - uses: ./.github/actions/git-lfs-cache
+
+      # Cache Library
+      - uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-
 
       - name: Build
         uses: game-ci/unity-builder@v2
