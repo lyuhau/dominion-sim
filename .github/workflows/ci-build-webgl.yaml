@@ -1,11 +1,6 @@
 ﻿name: CI Build WebGL
 
-on:
-  workflow_run:
-    workflows: ["CI Test"]
-    branches: [master]
-    types:
-      - completed
+on: [ push, pull_request ]
 
 concurrency:
   group: ci-build-webgl-${{ github.head_ref }}
@@ -13,7 +8,6 @@ concurrency:
 
 jobs:
   build-unity:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Build Unity
     runs-on: ubuntu-latest
     steps:
