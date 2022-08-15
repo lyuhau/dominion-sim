@@ -1,40 +1,19 @@
-﻿name: CI
+﻿name: CI Build WebGL
 
-on: [ push, pull_request ]
+on:
+  workflow_run:
+    workflows: ["CI Test"]
+    branches: [master]
+    types:
+      - completed
 
 concurrency:
-  group: ci-on-commit-${{ github.head_ref }}
+  group: ci-build-webgl-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      # Checkout (without LFS)
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      # Git LFS
-      - uses: ./.github/actions/git-lfs-cache
-
-      # Cache Library
-      - uses: actions/cache@v3
-        with:
-          path: Library
-          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-          restore-keys: |
-            Library-
-
-      - name: Test
-        uses: game-ci/unity-test-runner@v2
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        with:
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-
   build-unity:
-    needs: [test]
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Build Unity
     runs-on: ubuntu-latest
     steps:
@@ -65,21 +44,20 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: Build
-          path: build
+          path: Build
 
   build-docker:
     needs: [build-unity]
     name: Build Docker
     runs-on: ubuntu-latest
     steps:
-      # Checkout (without LFS)
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - uses: actions/download-artifact@v3
         with:
           name: Build
-          path: build
+          path: Build
 
       - name: Set up Docker Buildx
         id: buildx
@@ -98,7 +76,7 @@ jobs:
           context: .
           tags: |
             ghcr.io/lyuhau/dominion-sim/webgl:latest
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: ${{ github.ref == 'refs/heads/master' }}
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}

@@ -1,0 +1,47 @@
+﻿name: CI Deploy to Heroku
+
+on:
+  workflow_run:
+    workflows: ["CI Build WebGL"]
+    branches: [master]
+    types:
+      - completed
+
+concurrency:
+  group: ci-deploy-heroku-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-heroku:
+    name: Deploy to Heroku
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Login to Heroku Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: registry.heroku.com
+          username: _
+          password: ${{ secrets.HEROKU_API_KEY }}
+
+      - name: Create Heroku app
+        run: |
+          heroku destroy -a ${{ github.actor }}-dominion-sim -c=${{ github.actor }}-dominion-sim || true
+          heroku create ${{ github.actor }}-dominion-sim
+
+      - name: Copy Docker image from GHCR to Heroku registry
+        run: |
+          docker pull ghcr.io/${{ github.actor }}/dominion-sim/webgl:latest
+          docker tag ghcr.io/${{ github.actor }}/dominion-sim/webgl:latest registry.heroku.com/${{ github.actor }}-dominion-sim/web:latest
+          docker push registry.heroku.com/${{ github.actor }}-dominion-sim/web
+
+      - name: Deploy Heroku app
+        run: |
+          heroku container:release -a ${{ github.actor }}-dominion-sim web
